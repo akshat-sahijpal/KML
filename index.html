@@ -178,10 +178,9 @@
   <div class="nav-logo" onclick="showPage('shop')">SamSha</div>
   <ul class="nav-links">
     <li><a onclick="showPage('shop')" class="active" id="nav-shop">Shop</a></li>
-    <li><a onclick="showPage('admin')" id="nav-admin">Admin</a></li>
   </ul>
   <div class="nav-right">
-    <button class="btn-admin" onclick="showPage('admin')">+ Add Item</button>
+    <button class="btn-admin" onclick="promptAdminLogin()">Admin</button>
     <button class="hamburger" onclick="toggleMobileMenu()" aria-label="Menu">
       <span></span><span></span><span></span>
     </button>
@@ -192,7 +191,7 @@
 <div id="mobile-menu" style="display:none;background:var(--white);border-bottom:1px solid var(--border);padding:1rem 2rem;position:sticky;top:64px;z-index:99">
   <div style="display:flex;flex-direction:column;gap:12px">
     <a onclick="showPage('shop');toggleMobileMenu()" style="font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;color:var(--dark);text-decoration:none">Shop</a>
-    <a onclick="showPage('admin');toggleMobileMenu()" style="font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;color:var(--dark);text-decoration:none">Admin</a>
+    <a onclick="promptAdminLogin();toggleMobileMenu()" style="font-size:12px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;color:var(--dark);text-decoration:none">Admin</a>
   </div>
 </div>
 
@@ -204,7 +203,6 @@
     <p>Timeless pieces thoughtfully selected for your wardrobe. Each item chosen with care.</p>
     <div class="hero-btns">
       <button class="btn-primary" onclick="document.querySelector('.section-header').scrollIntoView({behavior:'smooth'})">Explore Collection</button>
-      <button class="btn-outline" onclick="showPage('admin')">Manage Store</button>
     </div>
   </div>
 
@@ -250,45 +248,7 @@
   </div>
   <div class="admin-page">
     <h2>Store Admin</h2>
-    <p class="sub">Add products, manage listings, and configure your store settings.</p>
-
-    <!-- Settings -->
-    <div class="admin-section">
-      <h3>⚙ Notification & Contact Settings</h3>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Your Email (order notifications) *</label>
-          <input type="email" id="admin-email" placeholder="your@email.com">
-        </div>
-        <div class="form-group">
-          <label>WhatsApp / Phone Number</label>
-          <input type="text" id="admin-phone" placeholder="+1 555 000 0000">
-        </div>
-      </div>
-      <div class="form-group">
-        <label>EmailJS Service ID</label>
-        <input type="text" id="ejs-service" placeholder="service_xxxxxxx">
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>EmailJS Template ID</label>
-          <input type="text" id="ejs-template" placeholder="template_xxxxxxx">
-        </div>
-        <div class="form-group">
-          <label>EmailJS Public Key</label>
-          <input type="text" id="ejs-key" placeholder="your_public_key">
-        </div>
-      </div>
-      <button class="btn-primary" onclick="saveSettings()" style="width:auto;padding:11px 30px">Save Settings</button>
-      <div class="emailjs-note">
-        <strong>How to set up email notifications (free):</strong><br>
-        1. Go to <a href="https://emailjs.com" target="_blank">emailjs.com</a> and create a free account.<br>
-        2. Add an Email Service (Gmail, Outlook, etc.) → copy the <strong>Service ID</strong>.<br>
-        3. Create an Email Template using variables: <code>{{product_name}}</code>, <code>{{buyer_name}}</code>, <code>{{buyer_email}}</code>, <code>{{buyer_phone}}</code>, <code>{{buyer_message}}</code>, <code>{{product_price}}</code> → copy the <strong>Template ID</strong>.<br>
-        4. Go to Account → Public Key → copy your <strong>Public Key</strong>.<br>
-        5. Paste all three above and click Save Settings.
-      </div>
-    </div>
+    <p class="sub">Add products and manage your store listings.</p>
 
     <!-- Add Product -->
     <div class="admin-section">
@@ -347,6 +307,23 @@
   </div>
 </div>
 
+<!-- ADMIN LOGIN MODAL -->
+<div class="modal-overlay" id="login-modal" onclick="if(event.target===this)closeLoginModal()">
+  <div class="modal" style="max-width:360px">
+    <button class="modal-close" onclick="closeLoginModal()">✕</button>
+    <div style="padding:2.5rem 2rem">
+      <p style="font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:300;margin-bottom:.5rem">Admin Access</p>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:1.75rem">Enter your password to manage the store.</p>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="admin-pw" placeholder="••••••••" onkeydown="if(event.key==='Enter')checkAdminLogin()">
+      </div>
+      <div id="login-error" style="display:none;font-size:13px;color:var(--danger);margin-bottom:1rem;padding:8px 12px;background:#fff4f4;border-left:3px solid var(--danger)">Incorrect password. Try again.</div>
+      <button class="btn-submit" onclick="checkAdminLogin()">Enter</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== INTEREST MODAL ===== -->
 <div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
   <div class="modal">
@@ -389,39 +366,57 @@
 <script>
 // ─── STATE ───────────────────────────────────────────────
 const EMOJIS = ['👗','👔','🧥','👘','👚','👕','👖','🩱','🩲','🩳','🧣','🧤','🧦','👠','👡','👟','👞','🥿','🥾','👒','🧢','👑','👜','👛','💼','🎒','🛍','💍','⌚','🕶','🧴','🪮'];
+
+// ─── HARDCODED CONFIG (admin only) ───────────────────────
+const CONFIG = {
+  email:       'of.samsha@gmail.com',
+  phone:       '+61449932885',
+  ejsService:  'service_5815tay',
+  ejsTemplate: 'template_edetusq',
+  ejsKey:      'JWfmHsooqSCWHC_lZ',
+  adminPass:   'SamSha2025'
+};
+
 let products = [];
-let settings = {email:'',phone:'',ejsService:'',ejsTemplate:'',ejsKey:''};
 let selectedEmoji = '👗';
 let activeCategory = 'All';
 let currentProduct = null;
+let adminUnlocked = false;
+
+// ─── ADMIN LOGIN ──────────────────────────────────────────
+function promptAdminLogin(){
+  if(adminUnlocked){ showPage('admin'); return; }
+  document.getElementById('admin-pw').value='';
+  document.getElementById('login-error').style.display='none';
+  document.getElementById('login-modal').classList.add('open');
+  document.body.style.overflow='hidden';
+  setTimeout(()=>document.getElementById('admin-pw').focus(),100);
+}
+function checkAdminLogin(){
+  const pw = document.getElementById('admin-pw').value;
+  if(pw === CONFIG.adminPass){
+    adminUnlocked = true;
+    closeLoginModal();
+    showPage('admin');
+  } else {
+    document.getElementById('login-error').style.display='block';
+    document.getElementById('admin-pw').value='';
+    document.getElementById('admin-pw').focus();
+  }
+}
+function closeLoginModal(){
+  document.getElementById('login-modal').classList.remove('open');
+  document.body.style.overflow='';
+}
 
 // ─── PERSISTENCE ─────────────────────────────────────────
 function loadData(){
   try{
     const p = localStorage.getItem('SamSha_products');
-    const s = localStorage.getItem('SamSha_settings');
     if(p) products = JSON.parse(p);
-    if(s) settings = {...settings,...JSON.parse(s)};
   }catch(e){console.warn('Storage error',e)}
 }
 function saveProducts(){ localStorage.setItem('SamSha_products', JSON.stringify(products)); }
-function saveSettings(){
-  settings.email        = document.getElementById('admin-email').value.trim();
-  settings.phone        = document.getElementById('admin-phone').value.trim();
-  settings.ejsService   = document.getElementById('ejs-service').value.trim();
-  settings.ejsTemplate  = document.getElementById('ejs-template').value.trim();
-  settings.ejsKey       = document.getElementById('ejs-key').value.trim();
-  localStorage.setItem('SamSha_settings', JSON.stringify(settings));
-  if(settings.ejsKey) emailjs.init(settings.ejsKey);
-  showToast('Settings saved ✓');
-}
-function loadSettingsUI(){
-  document.getElementById('admin-email').value   = settings.email||'';
-  document.getElementById('admin-phone').value   = settings.phone||'';
-  document.getElementById('ejs-service').value   = settings.ejsService||'';
-  document.getElementById('ejs-template').value  = settings.ejsTemplate||'';
-  document.getElementById('ejs-key').value       = settings.ejsKey||'';
-}
 
 // ─── EMOJI PICKER ────────────────────────────────────────
 function buildEmojiPicker(){
@@ -524,8 +519,8 @@ function openModal(id){
   document.getElementById('m-price').textContent= `$${parseFloat(currentProduct.price).toFixed(2)}`;
   document.getElementById('m-desc').textContent = currentProduct.desc||'Contact us to learn more about this piece.';
   const contacts=[];
-  if(settings.phone) contacts.push(`<div class="contact-pill">📞 ${escHtml(settings.phone)}</div>`);
-  if(settings.email) contacts.push(`<div class="contact-pill">✉ ${escHtml(settings.email)}</div>`);
+  if(CONFIG.phone) contacts.push(`<div class="contact-pill">📞 ${escHtml(CONFIG.phone)}</div>`);
+  if(CONFIG.email) contacts.push(`<div class="contact-pill">✉ ${escHtml(CONFIG.email)}</div>`);
   document.getElementById('m-contacts').innerHTML = contacts.join('')||'<p style="font-size:12px;color:var(--text-muted)">Set your contact info in Admin → Settings</p>';
   ['buyer-name','buyer-email','buyer-phone','buyer-msg'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
@@ -553,14 +548,10 @@ async function submitInterest(){
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ showFormMsg('Please enter a valid email address.','error'); return; }
   const btn = document.getElementById('submit-btn');
   btn.disabled=true; btn.textContent='Sending...';
-  if(!settings.ejsService||!settings.ejsTemplate||!settings.ejsKey){
-    showFormMsg('⚠ Email notifications not yet configured. Please set up EmailJS in Admin → Settings. We have noted your interest!','error');
-    btn.textContent='Send Enquiry'; btn.disabled=false; return;
-  }
   try{
-    emailjs.init(settings.ejsKey);
-    await emailjs.send(settings.ejsService, settings.ejsTemplate,{
-      to_email:      settings.email,
+    emailjs.init(CONFIG.ejsKey);
+    await emailjs.send(CONFIG.ejsService, CONFIG.ejsTemplate,{
+      to_email:      CONFIG.email,
       product_name:  currentProduct.name,
       product_category: currentProduct.cat,
       product_price: `$${parseFloat(currentProduct.price).toFixed(2)}`,
@@ -572,8 +563,14 @@ async function submitInterest(){
     showFormMsg('✓ Your enquiry has been sent! We will be in touch soon.','success');
     btn.textContent='Sent!';
   }catch(e){
-    console.error('EmailJS error:',e);
-    showFormMsg('Could not send email. Please contact us directly using the details above.','error');
+    const status = e.status || e.text || JSON.stringify(e);
+    console.error('EmailJS error detail:', status, e);
+    let msg = 'Could not send email. ';
+    if(e.status===412) msg += 'Domain not whitelisted — add your site URL in EmailJS → Account → Security.';
+    else if(e.status===400) msg += 'Invalid template or service ID. Check your EmailJS settings.';
+    else if(e.status===401||e.status===403) msg += 'Invalid public key. Check your EmailJS public key.';
+    else msg += `Error: ${status}. Please contact us directly.`;
+    showFormMsg(msg,'error');
     btn.disabled=false; btn.textContent='Send Enquiry';
   }
 }
@@ -589,7 +586,7 @@ function showPage(page){
   document.getElementById('page-'+page).classList.add('active');
   const navEl=document.getElementById('nav-'+page);
   if(navEl) navEl.classList.add('active');
-  if(page==='admin'){ loadSettingsUI(); renderAdminList(); }
+  if(page==='admin') renderAdminList();
   if(page==='shop')  renderShop();
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -608,13 +605,12 @@ function showToast(msg){
 }
 
 // ─── KEYBOARD ────────────────────────────────────────────
-document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeModal(); closeLoginModal(); } });
 
 // ─── INIT ────────────────────────────────────────────────
 function init(){
   loadData();
-  if(settings.ejsKey) try{ emailjs.init(settings.ejsKey); }catch(e){}
-  // Seed with sample products on first load
+  try{ emailjs.init(CONFIG.ejsKey); }catch(e){}
   if(!products.length){
     products = [
       {id:1,name:'Silk Evening Blouse',cat:'Tops',price:129,badge:'New',desc:'Luxurious silk blouse perfect for evening occasions. Available in ivory and champagne. True to size.',emoji:'👗'},
