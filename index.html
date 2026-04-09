@@ -351,7 +351,26 @@
   </div>
 </div>
 
-<script>
+<script type="module">
+// ─── FIREBASE IMPORTS ────────────────────────────────────
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, orderBy, query } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+
+// ─── FIREBASE CONFIG ─────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyDmJ1cYqGRr5hXC6lH4OLzcwvn7BlAnzyg",
+  authDomain: "samsha-768bd.firebaseapp.com",
+  projectId: "samsha-768bd",
+  storageBucket: "samsha-768bd.firebasestorage.app",
+  messagingSenderId: "847636515059",
+  appId: "1:847636515059:web:8bb4e24265f3ee4e090f86",
+  measurementId: "G-L6V800H7HP"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
+const productsCollection = collection(db, 'products');
+
 // ─── STATE ───────────────────────────────────────────────
 const EMOJIS = ['👗','👔','🧥','👘','👚','👕','👖','🩱','🩲','🩳','🧣','🧤','🧦','👠','👡','👟','👞','🥿','🥾','👒','🧢','👑','👜','👛','💼','🎒','🛍','💍','⌚','🕶','🧴','🪮'];
 
@@ -372,101 +391,165 @@ let currentProduct = null;
 let adminUnlocked = false;
 
 // ─── ADMIN LOGIN ──────────────────────────────────────────
-function promptAdminLogin(){
-  if(adminUnlocked){ showPage('admin'); return; }
+window.promptAdminLogin = function(){
+  if(adminUnlocked){ window.showPage('admin'); return; }
   document.getElementById('admin-pw').value='';
   document.getElementById('login-error').style.display='none';
   document.getElementById('login-modal').classList.add('open');
   document.body.style.overflow='hidden';
   setTimeout(()=>document.getElementById('admin-pw').focus(),100);
 }
-function checkAdminLogin(){
+window.checkAdminLogin = function(){
   const pw = document.getElementById('admin-pw').value;
   if(pw === CONFIG.adminPass){
     adminUnlocked = true;
-    closeLoginModal();
-    showPage('admin');
+    window.closeLoginModal();
+    window.showPage('admin');
   } else {
     document.getElementById('login-error').style.display='block';
     document.getElementById('admin-pw').value='';
     document.getElementById('admin-pw').focus();
   }
 }
-function closeLoginModal(){
+window.closeLoginModal = function(){
   document.getElementById('login-modal').classList.remove('open');
   document.body.style.overflow='';
 }
 
-// ─── PERSISTENCE ─────────────────────────────────────────
-function loadData(){
+// ─── FIREBASE PERSISTENCE ────────────────────────────────
+async function loadData(){
   try{
-    const p = localStorage.getItem('SamSha_products');
-    if(p) products = JSON.parse(p);
-  }catch(e){console.warn('Storage error',e)}
+    showToast('Loading products...');
+    const querySnapshot = await getDocs(productsCollection);
+    products = [];
+    querySnapshot.forEach((docSnap) => {
+      products.push({ id: docSnap.id, ...docSnap.data() });
+    });
+    products.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    renderShop();
+    renderAdminList();
+    if(products.length > 0) {
+      showToast(`${products.length} products loaded ✓`);
+    } else {
+      showToast('No products yet. Add your first product!');
+    }
+  }catch(e){
+    console.error('Firebase load error:', e);
+    if(e.code === 'permission-denied') {
+      showToast('⚠️ Firebase permission denied. Set up Firestore rules!');
+      alert('Firebase Error: Permission denied.\n\nPlease go to Firebase Console → Firestore → Rules and set:\n\nrules_version = \'2\';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /products/{productId} {\n      allow read, write: if true;\n    }\n  }\n}');
+    } else {
+      showToast('Error: ' + e.message);
+    }
+  }
 }
-function saveProducts(){ localStorage.setItem('SamSha_products', JSON.stringify(products)); }
 
-// ─── EMOJI PICKER ────────────────────────────────────────
+async function saveProductToFirebase(productData){
+  try {
+    const docRef = await addDoc(productsCollection, {
+      ...productData,
+      createdAt: Date.now()
+    });
+    console.log('Product saved with ID:', docRef.id);
+    return docRef.id;
+  } catch(e) {
+    console.error('Firebase save error:', e);
+    if(e.code === 'permission-denied') {
+      alert('Firebase Error: Permission denied.\n\nPlease set up Firestore security rules in Firebase Console.');
+    }
+    throw e;
+  }
+}
+
+async function deleteProductFromFirebase(productId){
+  try {
+    await deleteDoc(doc(db, 'products', productId));
+    console.log('Product deleted:', productId);
+  } catch(e) {
+    console.error('Firebase delete error:', e);
+    throw e;
+  }
+}
+
+// ─── EMOJI PICKER (deprecated - using images now) ────────
 function buildEmojiPicker(){
-  document.getElementById('emoji-picker').innerHTML =
-    EMOJIS.map(e=>`<div class="emoji-opt${e===selectedEmoji?' selected':''}" onclick="selectEmoji('${e}')" title="${e}">${e}</div>`).join('');
+  const el = document.getElementById('emoji-picker');
+  if(!el) return;
+  el.innerHTML = EMOJIS.map(e=>`<div class="emoji-opt${e===selectedEmoji?' selected':''}" onclick="selectEmoji('${e}')" title="${e}">${e}</div>`).join('');
 }
 function selectEmoji(e){ selectedEmoji=e; buildEmojiPicker(); }
 
 // ─── PRODUCTS ────────────────────────────────────────────
-function addProduct(){
+window.addProduct = async function(){
   const name  = document.getElementById('p-name').value.trim();
   const cat   = document.getElementById('p-cat').value;
   const price = parseFloat(document.getElementById('p-price').value);
   const badge = document.getElementById('p-badge').value.trim();
   const desc  = document.getElementById('p-desc').value.trim();
   if(!name||!cat||isNaN(price)||price<0){ showToast('Please fill in all required fields'); return; }
+  
   const fileInput = document.getElementById('p-image');
-const file = fileInput.files[0];
+  const file = fileInput.files[0];
 
-if (!file) {
-  showToast('Please upload an image');
-  return;
+  if (!file) {
+    showToast('Please upload an image');
+    return;
+  }
+
+  const reader = new FileReader();
+
+  reader.onload = async function(e) {
+    const imageData = e.target.result;
+    
+    try {
+      showToast('Adding product...');
+      const productData = {
+        name,
+        cat,
+        price,
+        badge,
+        desc,
+        image: imageData
+      };
+      
+      const docId = await saveProductToFirebase(productData);
+      
+      products.unshift({
+        id: docId,
+        ...productData,
+        createdAt: Date.now()
+      });
+
+      renderShop();
+      renderAdminList();
+
+      fileInput.value = '';
+      ['p-name','p-price','p-badge','p-desc'].forEach(id=>document.getElementById(id).value='');
+      document.getElementById('p-cat').value='';
+      showToast('Product added to collection ✓');
+    } catch(err) {
+      showToast('Error adding product. Please try again.');
+      console.error(err);
+    }
+  };
+
+  reader.readAsDataURL(file);
 }
 
-const reader = new FileReader();
-
-reader.onload = function(e) {
-  const imageData = e.target.result;
-
-  products.unshift({
-    id: Date.now(),
-    name,
-    cat,
-    price,
-    badge,
-    desc,
-    image: imageData
-  });
-
-  saveProducts();
-  renderShop();
-  renderAdminList();
-
-  fileInput.value = '';
-  showToast('Product added ✓');
-};
-
-reader.readAsDataURL(file);
-  saveProducts();
-  ['p-name','p-price','p-badge','p-desc'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('p-cat').value='';
-  renderShop();
-  renderAdminList();
-  showToast('Product added to collection ✓');
-}
-function deleteProduct(id){
+window.deleteProduct = async function(id){
   if(!confirm('Remove this item from your store?')) return;
-  products = products.filter(p=>p.id!==id);
-  saveProducts();
-  renderShop();
-  renderAdminList();
-  showToast('Item removed');
+  
+  try {
+    showToast('Removing product...');
+    await deleteProductFromFirebase(id);
+    products = products.filter(p=>p.id!==id);
+    renderShop();
+    renderAdminList();
+    showToast('Item removed ✓');
+  } catch(err) {
+    showToast('Error removing product. Please try again.');
+    console.error(err);
+  }
 }
 
 // ─── SHOP RENDERING ──────────────────────────────────────
@@ -478,7 +561,7 @@ function renderCategoryFilters(){
     cats.map(c=>`<button class="cat-btn${c===activeCategory?' active':''}" onclick="filterCat('${c}')">${c}</button>`).join('');
 }
 
-function filterCat(cat){ activeCategory=cat; renderShop(); }
+window.filterCat = function(cat){ activeCategory=cat; renderShop(); }
 
 function renderShop(){
   renderCategoryFilters();
@@ -488,7 +571,7 @@ function renderShop(){
   if(!filtered.length){ grid.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
   grid.innerHTML = filtered.map(p=>`
-    <div class="product-card" onclick="openModal(${p.id})">
+    <div class="product-card" onclick="openModal('${p.id}')">
       <div class="product-img">
         ${p.badge?`<div class="product-badge">${escHtml(p.badge)}</div>`:''}
        <img src="${p.image}" style="width:100%;height:100%;object-fit:cover;">
@@ -499,7 +582,7 @@ function renderShop(){
         <div class="product-desc">${p.desc?escHtml(p.desc):'Enquire for details.'}</div>
         <div class="product-footer">
           <div class="product-price">$${parseFloat(p.price).toFixed(2)}</div>
-          <button class="btn-interest" onclick="event.stopPropagation();openModal(${p.id})">I'm Interested</button>
+          <button class="btn-interest" onclick="event.stopPropagation();openModal('${p.id}')">I'm Interested</button>
         </div>
       </div>
     </div>`).join('');
@@ -526,15 +609,17 @@ function renderAdminList(){
           ${p.badge?`<span class="tag">${escHtml(p.badge)}</span>`:''}
         </div>
       </div>
-      <button class="btn-delete" onclick="deleteProduct(${p.id})">Remove</button>
+      <button class="btn-delete" onclick="deleteProduct('${p.id}')">Remove</button>
     </div>`).join('');
 }
 
 // ─── MODAL ───────────────────────────────────────────────
-function openModal(id){
+window.openModal = function(id){
   currentProduct = products.find(p=>p.id===id);
   if(!currentProduct) return;
-  document.getElementById('m-img').innerHTML   = `<span style="font-size:90px">${currentProduct.emoji}</span>`;
+  document.getElementById('m-img').innerHTML = currentProduct.image ? 
+    `<img src="${currentProduct.image}" style="width:100%;height:100%;object-fit:cover;">` : 
+    `<span style="font-size:90px">${currentProduct.emoji || '👗'}</span>`;
   document.getElementById('m-cat').textContent  = currentProduct.cat;
   document.getElementById('m-title').textContent= currentProduct.name;
   document.getElementById('m-price').textContent= `$${parseFloat(currentProduct.price).toFixed(2)}`;
@@ -543,8 +628,8 @@ function openModal(id){
   if(CONFIG.phone) contacts.push(`<div class="contact-pill">📞 ${escHtml(CONFIG.phone)}</div>`);
   if(CONFIG.email) contacts.push(`<div class="contact-pill">✉ ${escHtml(CONFIG.email)}</div>`);
   document.getElementById('m-contacts').innerHTML = contacts.join('')||'<p style="font-size:12px;color:var(--text-muted)">Set your contact info in Admin → Settings</p>';
-  ['buyer-name','buyer-email','buyer-phone','buyer-msg'].forEach(id=>{
-    const el=document.getElementById(id); if(el) el.value='';
+  ['buyer-name','buyer-email','buyer-phone','buyer-msg'].forEach(fieldId=>{
+    const el=document.getElementById(fieldId); if(el) el.value='';
   });
   const msg=document.getElementById('form-msg');
   msg.style.display='none'; msg.textContent='';
@@ -553,14 +638,14 @@ function openModal(id){
   document.getElementById('modal').classList.add('open');
   document.body.style.overflow='hidden';
 }
-function closeModal(){
+window.closeModal = function(){
   document.getElementById('modal').classList.remove('open');
   document.body.style.overflow='';
   currentProduct=null;
 }
 
 // ─── SUBMIT INTEREST ─────────────────────────────────────
-async function submitInterest(){
+window.submitInterest = async function(){
   const name  = document.getElementById('buyer-name').value.trim();
   const email = document.getElementById('buyer-email').value.trim();
   const phone = document.getElementById('buyer-phone').value.trim();
@@ -586,12 +671,12 @@ async function submitInterest(){
   }catch(e){
     const status = e.status || e.text || JSON.stringify(e);
     console.error('EmailJS error detail:', status, e);
-    let msg = 'Could not send email. ';
-    if(e.status===412) msg += 'Domain not whitelisted — add your site URL in EmailJS → Account → Security.';
-    else if(e.status===400) msg += 'Invalid template or service ID. Check your EmailJS settings.';
-    else if(e.status===401||e.status===403) msg += 'Invalid public key. Check your EmailJS public key.';
-    else msg += `Error: ${status}. Please contact us directly.`;
-    showFormMsg(msg,'error');
+    let errMsg = 'Could not send email. ';
+    if(e.status===412) errMsg += 'Domain not whitelisted — add your site URL in EmailJS → Account → Security.';
+    else if(e.status===400) errMsg += 'Invalid template or service ID. Check your EmailJS settings.';
+    else if(e.status===401||e.status===403) errMsg += 'Invalid public key. Check your EmailJS public key.';
+    else errMsg += `Error: ${status}. Please contact us directly.`;
+    showFormMsg(errMsg,'error');
     btn.disabled=false; btn.textContent='Send Enquiry';
   }
 }
@@ -601,7 +686,7 @@ function showFormMsg(txt,type){
 }
 
 // ─── PAGES ───────────────────────────────────────────────
-function showPage(page){
+window.showPage = function(page){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-links a').forEach(a=>a.classList.remove('active'));
   document.getElementById('page-'+page).classList.add('active');
@@ -612,7 +697,7 @@ function showPage(page){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
-function toggleMobileMenu(){
+window.toggleMobileMenu = function(){
   const m=document.getElementById('mobile-menu');
   m.style.display = m.style.display==='none'?'block':'none';
 }
@@ -626,25 +711,14 @@ function showToast(msg){
 }
 
 // ─── KEYBOARD ────────────────────────────────────────────
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeModal(); closeLoginModal(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ window.closeModal(); window.closeLoginModal(); } });
 
 // ─── INIT ────────────────────────────────────────────────
-function init(){
-  loadData();
+async function init(){
   try{ emailjs.init(CONFIG.ejsKey); }catch(e){}
-  if(!products.length){
-    products = [
-      {id:1,name:'Silk Evening Blouse',cat:'Tops',price:129,badge:'New',desc:'Luxurious silk blouse perfect for evening occasions. Available in ivory and champagne. True to size.',emoji:'👗'},
-      {id:2,name:'Wide-Leg Tailored Trousers',cat:'Bottoms',price:189,badge:'',desc:'High-waisted tailored trousers with a relaxed wide leg. Crafted from premium crepe fabric.',emoji:'👖'},
-      {id:3,name:'Cashmere Wrap Coat',cat:'Outerwear',price:349,badge:'Limited',desc:'Timeless wrap coat in pure cashmere. Versatile and endlessly elegant for any occasion.',emoji:'🧥'},
-      {id:4,name:'Beaded Clutch Bag',cat:'Bags',price:89,badge:'',desc:'Hand-beaded evening clutch. A statement piece for any special occasion. Fully lined interior.',emoji:'👜'},
-      {id:5,name:'Strappy Heeled Sandals',cat:'Shoes',price:159,badge:'',desc:'Delicate strappy sandals with a stacked heel. Crafted from genuine leather. Runs half size small.',emoji:'👠'},
-      {id:6,name:'Floral Midi Dress',cat:'Dresses',price:219,badge:'New',desc:'Flowing midi dress in our signature floral print. Effortlessly elegant for day or evening.',emoji:'👘'},
-    ];
-    saveProducts();
-  }
-  buildEmojiPicker();
   renderShop();
+  renderAdminList();
+  await loadData();
 }
 
 init();
