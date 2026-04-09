@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KML — Fashion Store</title>
+<title>SamSha — Fashion Store</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 <style>
@@ -175,7 +175,7 @@
 
 <!-- NAV -->
 <nav>
-  <div class="nav-logo" onclick="showPage('shop')">KML</div>
+  <div class="nav-logo" onclick="showPage('shop')">SamSha</div>
   <ul class="nav-links">
     <li><a onclick="showPage('shop')" class="active" id="nav-shop">Shop</a></li>
     <li><a onclick="showPage('admin')" id="nav-admin">Admin</a></li>
@@ -236,9 +236,9 @@
   </div>
 
   <footer>
-    <strong>KML</strong>
+    <strong>SamSha</strong>
     <p style="margin-top:12px">Curated fashion for the modern soul</p>
-    <p style="margin-top:8px;font-size:11px">© 2025 KML. All rights reserved.</p>
+    <p style="margin-top:8px;font-size:11px">© 2025 SamSha. All rights reserved.</p>
   </footer>
 </div>
 
@@ -398,20 +398,20 @@ let currentProduct = null;
 // ─── PERSISTENCE ─────────────────────────────────────────
 function loadData(){
   try{
-    const p = localStorage.getItem('KML_products');
-    const s = localStorage.getItem('KML_settings');
+    const p = localStorage.getItem('SamSha_products');
+    const s = localStorage.getItem('SamSha_settings');
     if(p) products = JSON.parse(p);
     if(s) settings = {...settings,...JSON.parse(s)};
   }catch(e){console.warn('Storage error',e)}
 }
-function saveProducts(){ localStorage.setItem('KML_products', JSON.stringify(products)); }
+function saveProducts(){ localStorage.setItem('SamSha_products', JSON.stringify(products)); }
 function saveSettings(){
   settings.email        = document.getElementById('admin-email').value.trim();
   settings.phone        = document.getElementById('admin-phone').value.trim();
   settings.ejsService   = document.getElementById('ejs-service').value.trim();
   settings.ejsTemplate  = document.getElementById('ejs-template').value.trim();
   settings.ejsKey       = document.getElementById('ejs-key').value.trim();
-  localStorage.setItem('KML_settings', JSON.stringify(settings));
+  localStorage.setItem('SamSha_settings', JSON.stringify(settings));
   if(settings.ejsKey) emailjs.init(settings.ejsKey);
   showToast('Settings saved ✓');
 }
