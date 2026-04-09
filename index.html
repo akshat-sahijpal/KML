@@ -256,7 +256,7 @@
           <label>Product Name *</label>
           <input type="text" id="p-name" placeholder="e.g. Any Product Name">
         </div>
-        
+
         <div class="form-group">
           <label>Category *</label>
           <input type="text" id="p-cat" placeholder="Select category...">
@@ -277,10 +277,10 @@
         <label>Description</label>
         <textarea id="p-desc" placeholder="Describe the item — fabric, fit, occasion, sizing..."></textarea>
       </div>
-      <div class="form-group">
-        <label>Choose Product Icon</label>
-        <div class="emoji-picker" id="emoji-picker"></div>
-      </div>
+<div class="form-group">
+  <label>Upload Product Image *</label>
+  <input type="file" id="p-image" accept="image/*">
+</div>
       <button class="btn-primary" onclick="addProduct()" style="width:auto;padding:12px 36px;margin-top:.75rem">Add to Collection</button>
     </div>
 
@@ -421,7 +421,38 @@ function addProduct(){
   const badge = document.getElementById('p-badge').value.trim();
   const desc  = document.getElementById('p-desc').value.trim();
   if(!name||!cat||isNaN(price)||price<0){ showToast('Please fill in all required fields'); return; }
-  products.unshift({id:Date.now(),name,cat,price,badge,desc,emoji:selectedEmoji});
+  const fileInput = document.getElementById('p-image');
+const file = fileInput.files[0];
+
+if (!file) {
+  showToast('Please upload an image');
+  return;
+}
+
+const reader = new FileReader();
+
+reader.onload = function(e) {
+  const imageData = e.target.result;
+
+  products.unshift({
+    id: Date.now(),
+    name,
+    cat,
+    price,
+    badge,
+    desc,
+    image: imageData
+  });
+
+  saveProducts();
+  renderShop();
+  renderAdminList();
+
+  fileInput.value = '';
+  showToast('Product added ✓');
+};
+
+reader.readAsDataURL(file);
   saveProducts();
   ['p-name','p-price','p-badge','p-desc'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('p-cat').value='';
@@ -460,7 +491,7 @@ function renderShop(){
     <div class="product-card" onclick="openModal(${p.id})">
       <div class="product-img">
         ${p.badge?`<div class="product-badge">${escHtml(p.badge)}</div>`:''}
-        <span class="emoji">${p.emoji}</span>
+       <img src="${p.image}" style="width:100%;height:100%;object-fit:cover;">
       </div>
       <div class="product-info">
         <div class="product-category">${escHtml(p.cat)}</div>
@@ -484,7 +515,9 @@ function renderAdminList(){
   }
   el.innerHTML = products.map(p=>`
     <div class="admin-item">
-      <div class="admin-item-icon">${p.emoji}</div>
+     <div class="admin-item-icon">
+  <img src="${p.image}" style="width:100%;height:100%;object-fit:cover;">
+</div>
       <div class="admin-item-info">
         <div class="admin-item-name">${escHtml(p.name)}</div>
         <div class="admin-item-meta">
